@@ -18,6 +18,7 @@ interface Props {
   onTogglePlay: () => void
   onSpeedChange: (ms: number) => void
   playing: boolean
+  loading?: boolean
 }
 
 const EVENT_COLOR: Record<string, string> = {
@@ -27,9 +28,10 @@ const EVENT_COLOR: Record<string, string> = {
 }
 
 export function TimelineScrubber({
-  step, total, events, phases, speed, onGoTo, onPrev, onNext, onTogglePlay, onSpeedChange, playing,
+  step, total, events, phases, speed, onGoTo, onPrev, onNext, onTogglePlay, onSpeedChange, playing, loading = false,
 }: Props) {
   if (total === 0) return null
+  const disabled = loading
 
   return (
     <div className="bg-slate-900 border border-slate-700 rounded-lg p-4 flex flex-col gap-3">
@@ -76,27 +78,29 @@ export function TimelineScrubber({
         max={total - 1}
         value={step}
         onChange={e => onGoTo(Number(e.target.value))}
-        className="w-full accent-violet-500"
+        disabled={disabled}
+        className="w-full accent-violet-500 disabled:opacity-40"
       />
 
       {/* Controls */}
       <div className="flex items-center gap-3 flex-wrap">
         <button
           onClick={onPrev}
-          disabled={step === 0}
+          disabled={step === 0 || disabled}
           className="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-30 text-sm transition-colors"
         >
           ‹ Prev
         </button>
         <button
           onClick={onTogglePlay}
-          className="px-4 py-1 rounded bg-violet-600 hover:bg-violet-500 text-sm transition-colors min-w-[80px]"
+          disabled={disabled}
+          className="px-4 py-1 rounded bg-violet-600 hover:bg-violet-500 disabled:opacity-30 text-sm transition-colors min-w-[80px]"
         >
           {playing ? '⏸ Pause' : '▶ Play'}
         </button>
         <button
           onClick={onNext}
-          disabled={step === total - 1}
+          disabled={step === total - 1 || disabled}
           className="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-30 text-sm transition-colors"
         >
           Next ›
