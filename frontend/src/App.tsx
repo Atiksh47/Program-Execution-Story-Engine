@@ -133,6 +133,7 @@ export default function App() {
             onTogglePlay={togglePlay}
             onSpeedChange={setSpeed}
             playing={playing}
+            loading={loading}
           />
 
           {/* Step header — what's happening right now */}
@@ -142,7 +143,7 @@ export default function App() {
                 /* RETURN: make the result the centrepiece */
                 <div className="bg-emerald-950/40 border border-emerald-700/40 rounded-lg px-4 py-3 flex flex-col gap-1">
                   <div className="flex items-center gap-3 flex-wrap">
-                    <span className="px-2.5 py-1 text-xs rounded border font-mono uppercase tracking-wider shrink-0 bg-emerald-500/20 text-emerald-300 border-emerald-500/40">
+                    <span title="RETURN — function finished and yielded a value back to its caller" className="px-2.5 py-1 text-xs rounded border font-mono uppercase tracking-wider shrink-0 bg-emerald-500/20 text-emerald-300 border-emerald-500/40 cursor-help">
                       RETURN
                     </span>
                     <span className="font-mono text-base">
@@ -170,7 +171,7 @@ export default function App() {
                 /* CALL: show which function we're entering with its args */
                 <div className="bg-violet-950/30 border border-violet-700/30 rounded-lg px-4 py-3 flex flex-col gap-1">
                   <div className="flex items-center gap-3 flex-wrap">
-                    <span className="px-2.5 py-1 text-xs rounded border font-mono uppercase tracking-wider shrink-0 bg-violet-500/20 text-violet-300 border-violet-500/40">
+                    <span title="CALL — execution is entering a new function frame" className="px-2.5 py-1 text-xs rounded border font-mono uppercase tracking-wider shrink-0 bg-violet-500/20 text-violet-300 border-violet-500/40 cursor-help">
                       CALL
                     </span>
                     <span className="font-mono text-base">
@@ -194,7 +195,7 @@ export default function App() {
               : (
                 /* LINE: standard display */
                 <div className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 flex items-center gap-3">
-                  <span className={`px-2.5 py-1 text-xs rounded border font-mono uppercase tracking-wider shrink-0 ${badge.cls}`}>
+                  <span title={`LINE — ${badge.desc}`} className={`px-2.5 py-1 text-xs rounded border font-mono uppercase tracking-wider shrink-0 cursor-help ${badge.cls}`}>
                     {badge.label}
                   </span>
                   <div className="flex flex-col gap-0.5 min-w-0">

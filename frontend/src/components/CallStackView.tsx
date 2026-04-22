@@ -1,3 +1,33 @@
+const MAX_DISPLAY_DEPTH = 10
+
+// One coloured bar per frame — width grows proportionally to depth
+function DepthBars({ depth }: { depth: number }) {
+  const count = Math.min(depth, MAX_DISPLAY_DEPTH)
+  if (count === 0) return null
+
+  return (
+    <div className="flex items-end gap-px h-6 px-4 pb-1">
+      {Array.from({ length: count }).map((_, i) => {
+        const isTop = i === count - 1
+        const heightPct = 40 + Math.round((i / Math.max(count - 1, 1)) * 60)
+        return (
+          <div
+            key={i}
+            title={`frame ${i}`}
+            className={`flex-1 rounded-t-sm transition-all duration-300 ${
+              isTop ? 'bg-violet-400' : 'bg-slate-600'
+            }`}
+            style={{ height: `${heightPct}%` }}
+          />
+        )
+      })}
+      {depth > MAX_DISPLAY_DEPTH && (
+        <span className="text-[9px] text-slate-500 ml-1 self-end">+{depth - MAX_DISPLAY_DEPTH}</span>
+      )}
+    </div>
+  )
+}
+
 interface Props {
   callStack: string[]
   depth: number
@@ -12,6 +42,7 @@ export function CallStackView({ callStack, depth }: Props) {
           <span className="text-xs text-slate-600 font-mono">depth {depth}</span>
         )}
       </div>
+      <DepthBars depth={depth} />
       <div className="p-3 flex flex-col-reverse gap-1 min-h-16">
         {callStack.length === 0 ? (
           <span className="text-slate-600 text-sm px-1">— empty —</span>
