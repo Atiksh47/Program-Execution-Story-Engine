@@ -7,7 +7,7 @@ export interface TraceEvent {
   locals: Record<string, unknown>
   call_stack: string[]
   depth: number
-  return_value: unknown
+  return_value: string | null
 }
 
 export interface Phase {
@@ -26,4 +26,5 @@ export interface TraceResponse {
   events: TraceEvent[]
   total_steps: number
   capped: boolean
+  stdout: string
 }

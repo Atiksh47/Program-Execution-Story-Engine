@@ -1,5 +1,4 @@
 from pydantic import BaseModel
-from typing import Any
 
 
 class TraceEvent(BaseModel):
@@ -8,10 +7,10 @@ class TraceEvent(BaseModel):
     line_no: int
     source_line: str
     func_name: str
-    locals: dict[str, Any]
+    locals: dict[str, object]
     call_stack: list[str]
     depth: int
-    return_value: Any = None
+    return_value: str | None = None
 
 
 class TraceRequest(BaseModel):
@@ -22,15 +21,12 @@ class TraceResponse(BaseModel):
     events: list[TraceEvent]
     total_steps: int
     capped: bool
+    stdout: str = ""
 
 
 class NarrationRequest(BaseModel):
     events: list[TraceEvent]
     code: str
-
-
-class StepLabel(BaseModel):
-    label: str
 
 
 class Phase(BaseModel):

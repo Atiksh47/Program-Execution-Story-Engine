@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import type { TraceEvent } from '../types'
 
-export function useTimeline(events: TraceEvent[]) {
+export function useTimeline(events: TraceEvent[], speed: number = 800) {
   const [step, setStep] = useState(0)
   const [playing, setPlaying] = useState(false)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -25,16 +25,19 @@ export function useTimeline(events: TraceEvent[]) {
           }
           return s + 1
         })
-      }, 300)
+      }, speed)
     } else {
       if (intervalRef.current) clearInterval(intervalRef.current)
     }
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
-  }, [playing, total])
+  }, [playing, total, speed])
 
   useEffect(() => { setStep(0); setPlaying(false) }, [events])
 
-  const getPrevLocals = (): Record<string, unknown> => events[step - 1]?.locals ?? {}
+  const getPrevLocals = useCallback(
+    (): Record<string, unknown> => events[step - 1]?.locals ?? {},
+    [events, step],
+  )
 
   return { step, current, total, prev, next, goTo, playing, togglePlay, getPrevLocals }
 }

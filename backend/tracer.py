@@ -1,7 +1,9 @@
 import sys
-import ast
 from backend.models import TraceEvent
-from backend.sandbox import safe_copy_locals, SAFE_GLOBALS, run_with_timeout, TimeoutError
+from backend.sandbox import (
+    OutputCapture, SAFE_BUILTINS, safe_copy_locals,
+    run_with_timeout, TimeoutError,  # noqa: F401
+)
 
 MAX_STEPS = 500
 
@@ -25,26 +27,14 @@ class ExecutionTracer:
             self.capped = True
             return None
 
-        func_name = frame.f_code.co_filename
-        # Only trace user code, not stdlib internals
-        if func_name != "<string>":
+        if frame.f_code.co_filename != "<string>":
             return None
 
         func_name = frame.f_code.co_name
 
         if event == "call":
             self.call_stack.append(func_name)
-        elif event == "return":
-            pass  # record before popping
-
-        locals_snapshot = safe_copy_locals(frame.f_locals)
-        return_value = None
-        if event == "return":
-            try:
-                import copy
-                return_value = copy.deepcopy(arg)
-            except Exception:
-                return_value = repr(arg)
+        # For "return", record before popping so the stack still shows the returning frame
 
         trace_event = TraceEvent(
             step=self.step,
@@ -52,23 +42,24 @@ class ExecutionTracer:
             line_no=frame.f_lineno,
             source_line=self._get_source_line(frame.f_lineno),
             func_name=func_name,
-            locals=locals_snapshot,
+            locals=safe_copy_locals(frame.f_locals),
             call_stack=list(self.call_stack),
             depth=len(self.call_stack),
-            return_value=return_value,
+            return_value=repr(arg) if event == "return" else None,
         )
         self.events.append(trace_event)
         self.step += 1
 
-        if event == "return":
-            if self.call_stack:
-                self.call_stack.pop()
+        if event == "return" and self.call_stack:
+            self.call_stack.pop()
 
         return self._tracer
 
-    def run(self, code: str):
+    def run(self, code: str, capture: OutputCapture) -> None:
         compiled = compile(code, "<string>", "exec")
-        globals_copy = dict(SAFE_GLOBALS)
+        safe_builtins = dict(SAFE_BUILTINS)
+        safe_builtins["print"] = capture.print_fn
+        globals_copy = {"__builtins__": safe_builtins}
 
         def execute():
             sys.settrace(self._tracer)
@@ -80,8 +71,9 @@ class ExecutionTracer:
         run_with_timeout(execute, timeout_seconds=5.0)
 
 
-def trace_code(code: str) -> tuple[list[TraceEvent], bool]:
+def trace_code(code: str) -> tuple[list[TraceEvent], bool, str]:
+    capture = OutputCapture()
     source_lines = code.splitlines()
     tracer = ExecutionTracer(source_lines)
-    tracer.run(code)
-    return tracer.events, tracer.capped
+    tracer.run(code, capture)
+    return tracer.events, tracer.capped, capture.output

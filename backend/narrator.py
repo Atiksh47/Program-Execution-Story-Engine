@@ -1,22 +1,24 @@
 import json
 import os
-from anthropic import Anthropic
-from backend.models import TraceEvent, NarrationResponse, Phase
 
-client = Anthropic()
+from backend.models import TraceEvent, NarrationResponse, Phase
 
 
 def narrate(events: list[TraceEvent], code: str) -> NarrationResponse:
-    timeline_summary = []
-    for e in events:
-        timeline_summary.append({
+    from anthropic import Anthropic
+    client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+
+    timeline_summary = [
+        {
             "step": e.step,
             "event": e.event,
             "func": e.func_name,
             "line": e.source_line.strip(),
             "locals": e.locals,
             "depth": e.depth,
-        })
+        }
+        for e in events
+    ]
 
     prompt = f"""You are analyzing a Python program's execution trace.
 
@@ -40,24 +42,39 @@ Return a JSON object with exactly this structure:
 }}
 
 Rules:
-- Label every step. Keep labels under 8 words.
-- Phases should capture the high-level narrative arc (e.g. "Initialization", "Recursive Descent", "Stack Unwind", "Loop Body", "Base Case").
-- Use 2–5 phases. Every step must fall within exactly one phase range.
+- Label every step (0 through {len(events) - 1}). Keep labels under 8 words.
+- Phases capture the high-level narrative arc (e.g. "Initialization", "Recursive Descent", "Stack Unwind", "Loop Body").
+- Use 2–5 phases. Phases must not overlap, and together must cover every step exactly once.
 - summary should be what you'd tell a recruiter in 10 seconds.
 - Return only valid JSON, no markdown fences."""
 
     message = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=2048,
+        timeout=30,
         messages=[{"role": "user", "content": prompt}],
     )
 
-    raw = message.content[0].text.strip()
-    data = json.loads(raw)
+    try:
+        raw = message.content[0].text.strip()
+        # Strip markdown fences if Claude ignores the instruction
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        data = json.loads(raw)
+    except (IndexError, json.JSONDecodeError) as e:
+        raise ValueError(f"Claude returned a response that could not be parsed as JSON: {e}")
 
-    phases = [Phase(**p) for p in data["phases"]]
-    return NarrationResponse(
-        step_labels=data["step_labels"],
-        phases=phases,
-        summary=data["summary"],
-    )
+    try:
+        step_labels: dict[str, str] = data["step_labels"]
+        phases = [Phase(**p) for p in data["phases"]]
+        summary: str = data["summary"]
+    except (KeyError, TypeError) as e:
+        raise ValueError(f"Claude's JSON was missing required fields: {e}")
+
+    # Fill in any steps Claude missed so the frontend always has a label
+    for i in range(len(events)):
+        step_labels.setdefault(str(i), f"step {i}")
+
+    return NarrationResponse(step_labels=step_labels, phases=phases, summary=summary)
