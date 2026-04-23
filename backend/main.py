@@ -4,10 +4,11 @@ import logging
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 
-from backend.models import TraceRequest, TraceResponse, NarrationRequest, NarrationResponse
+from backend.models import TraceRequest, TraceResponse, NarrationRequest
 from backend.tracer import trace_code
-from backend.narrator import narrate
+from backend.narrator import narrate_stream
 from backend.sandbox import TimeoutError
 
 logger = logging.getLogger("uvicorn.error")
@@ -64,16 +65,15 @@ def trace_endpoint(req: TraceRequest):
     return TraceResponse(events=events, total_steps=len(events), capped=capped, stdout=stdout)
 
 
-@app.post("/narrate", response_model=NarrationResponse)
+@app.post("/narrate")
 def narrate_endpoint(req: NarrationRequest):
     if not os.environ.get("ANTHROPIC_API_KEY"):
         raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY is not configured on the server.")
-    try:
-        return narrate(req.events, req.code)
-    except ValueError as e:
-        raise HTTPException(status_code=502, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Narration failed: {e}")
+    return StreamingResponse(
+        narrate_stream(req.events, req.code),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.get("/health")

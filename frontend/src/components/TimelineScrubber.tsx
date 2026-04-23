@@ -124,7 +124,13 @@ export function TimelineScrubber({
           ))}
         </div>
 
-        <span className="ml-auto text-xs text-slate-500 font-mono">
+        <span className="ml-auto text-xs text-slate-500 font-mono flex items-center gap-2">
+          {phases && phases.length > 0 && (() => {
+            const active = phases.find(p => step >= p.start_step && step <= p.end_step)
+            return active ? (
+              <span className="text-violet-400/80">{active.name}</span>
+            ) : null
+          })()}
           step {step + 1} / {total}
         </span>
       </div>

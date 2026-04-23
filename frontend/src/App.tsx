@@ -23,6 +23,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
   const [narration, setNarration] = useState<NarrationResponse | null>(null)
   const [narrateLoading, setNarrateLoading] = useState(false)
+  const [streamingSummary, setStreamingSummary] = useState('')
   const [traced, setTraced] = useState(false)
   const [speed, setSpeed] = useState(800)
 
@@ -32,6 +33,7 @@ export default function App() {
     setLoading(true)
     setError(null)
     setNarration(null)
+    setStreamingSummary('')
     setStdout('')
     setTraced(false)
     setSubmittedCode(code)
@@ -66,20 +68,58 @@ export default function App() {
   async function handleNarrate() {
     setNarrateLoading(true)
     setError(null)
+    setNarration(null)
+    setStreamingSummary('')
+
     try {
       const res = await fetch('/narrate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ events, code: submittedCode }),
       })
-      let data: Record<string, unknown>
-      try {
-        data = await res.json()
-      } catch {
-        throw new Error(`Server returned a non-JSON response (status ${res.status})`)
+
+      if (!res.ok) {
+        let detail = 'Narration failed'
+        try { detail = ((await res.json()).detail as string) ?? detail } catch { /* ignore */ }
+        throw new Error(detail)
       }
-      if (!res.ok) throw new Error((data.detail as string) ?? 'Narration failed')
-      setNarration(data as NarrationResponse)
+
+      if (!res.body) throw new Error('No response body from server')
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let accText = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+
+        // Process complete SSE lines
+        const lines = buffer.split('\n')
+        buffer = lines.pop() ?? ''
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          let payload: Record<string, unknown>
+          try { payload = JSON.parse(line.slice(6)) } catch { continue }
+
+          if (payload.type === 'delta') {
+            accText += payload.text as string
+            // Progressively extract summary as text arrives
+            const m = accText.match(/"summary"\s*:\s*"((?:[^"\\]|\\.)*)/s)
+            if (m) setStreamingSummary(m[1].replace(/\\n/g, '\n').replace(/\\"/g, '"'))
+
+          } else if (payload.type === 'done') {
+            setNarration(payload.narration as NarrationResponse)
+            setStreamingSummary('')
+
+          } else if (payload.type === 'error') {
+            throw new Error((payload.detail as string) ?? 'Narration failed')
+          }
+        }
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -151,7 +191,6 @@ export default function App() {
           {current && badge && (
             current.event === 'return' && current.return_value !== null && current.func_name !== '<module>'
               ? (
-                /* RETURN: make the result the centrepiece */
                 <div className="bg-emerald-950/40 border border-emerald-700/40 rounded-lg px-4 py-3 flex flex-col gap-1">
                   <div className="flex items-center gap-3 flex-wrap">
                     <span title="RETURN — function finished and yielded a value back to its caller" className="px-2.5 py-1 text-xs rounded border font-mono uppercase tracking-wider shrink-0 bg-emerald-500/20 text-emerald-300 border-emerald-500/40 cursor-help">
@@ -179,7 +218,6 @@ export default function App() {
               )
               : current.event === 'call' && current.func_name !== '<module>'
               ? (
-                /* CALL: show which function we're entering with its args */
                 <div className="bg-violet-950/30 border border-violet-700/30 rounded-lg px-4 py-3 flex flex-col gap-1">
                   <div className="flex items-center gap-3 flex-wrap">
                     <span title="CALL — execution is entering a new function frame" className="px-2.5 py-1 text-xs rounded border font-mono uppercase tracking-wider shrink-0 bg-violet-500/20 text-violet-300 border-violet-500/40 cursor-help">
@@ -204,7 +242,6 @@ export default function App() {
                 </div>
               )
               : (
-                /* LINE: standard display */
                 <div className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 flex items-center gap-3">
                   <span title={`LINE — ${badge.desc}`} className={`px-2.5 py-1 text-xs rounded border font-mono uppercase tracking-wider shrink-0 cursor-help ${badge.cls}`}>
                     {badge.label}
@@ -230,6 +267,7 @@ export default function App() {
               />
               <NarrationPanel
                 narration={narration}
+                streamingSummary={streamingSummary}
                 loading={narrateLoading}
                 currentStep={step}
                 onRequest={handleNarrate}
