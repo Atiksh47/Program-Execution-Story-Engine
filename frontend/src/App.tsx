@@ -41,9 +41,14 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code }),
       })
-      const data = await res.json()
+      let data: Record<string, unknown>
+      try {
+        data = await res.json()
+      } catch {
+        throw new Error(`Server returned a non-JSON response (status ${res.status})`)
+      }
       if (!res.ok) {
-        throw new Error(data.detail ?? 'Trace failed')
+        throw new Error((data.detail as string) ?? 'Trace failed')
       }
       const typed: TraceResponse = data
       setEvents(typed.events)
@@ -60,14 +65,20 @@ export default function App() {
 
   async function handleNarrate() {
     setNarrateLoading(true)
+    setError(null)
     try {
       const res = await fetch('/narrate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ events, code: submittedCode }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.detail ?? 'Narration failed')
+      let data: Record<string, unknown>
+      try {
+        data = await res.json()
+      } catch {
+        throw new Error(`Server returned a non-JSON response (status ${res.status})`)
+      }
+      if (!res.ok) throw new Error((data.detail as string) ?? 'Narration failed')
       setNarration(data as NarrationResponse)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e))

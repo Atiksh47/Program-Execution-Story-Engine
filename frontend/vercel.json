@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    { "source": "/trace", "destination": "https://your-backend.onrender.com/trace" },
+    { "source": "/narrate", "destination": "https://your-backend.onrender.com/narrate" },
+    { "source": "/health", "destination": "https://your-backend.onrender.com/health" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

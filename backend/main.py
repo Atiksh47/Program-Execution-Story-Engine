@@ -14,9 +14,16 @@ logger = logging.getLogger("uvicorn.error")
 
 app = FastAPI(title="Program Execution Story Engine")
 
+_raw_origins = os.environ.get("ALLOWED_ORIGINS", "")
+_allowed_origins = (
+    [o.strip() for o in _raw_origins.split(",") if o.strip()]
+    if _raw_origins.strip()
+    else ["http://localhost:5173"]
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=_allowed_origins,
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
