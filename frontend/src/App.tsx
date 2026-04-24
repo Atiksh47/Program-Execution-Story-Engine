@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { TraceEvent, TraceResponse, NarrationResponse } from './types'
 import { useTimeline } from './hooks/useTimeline'
-import { CodeInput } from './components/CodeInput'
+import { CodeInput, EXAMPLES } from './components/CodeInput'
 import { SourceHighlighter } from './components/SourceHighlighter'
 import { VariableInspector } from './components/VariableInspector'
 import { CallStackView } from './components/CallStackView'
@@ -15,6 +15,7 @@ const EVENT_BADGE: Record<string, { cls: string; label: string; desc: string }> 
 }
 
 export default function App() {
+  const [code, setCode] = useState(EXAMPLES['Factorial'])
   const [events, setEvents] = useState<TraceEvent[]>([])
   const [submittedCode, setSubmittedCode] = useState('')
   const [capped, setCapped] = useState(false)
@@ -26,22 +27,45 @@ export default function App() {
   const [streamingSummary, setStreamingSummary] = useState('')
   const [traced, setTraced] = useState(false)
   const [speed, setSpeed] = useState(800)
+  const [traceId, setTraceId] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
 
   const { step, current, total, prev, next, goTo, playing, togglePlay, getPrevLocals } = useTimeline(events, speed)
 
-  async function handleTrace(code: string) {
+  // Auto-load a shared trace from the URL on mount
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('trace')
+    if (!id) return
+    fetch(`/share/${id}`)
+      .then(r => r.ok ? r.json() : null)
+      .then((data: TraceResponse | null) => {
+        if (!data) return
+        setCode(data.code ?? '')
+        setSubmittedCode(data.code ?? '')
+        setEvents(data.events)
+        setCapped(data.capped)
+        setStdout(data.stdout ?? '')
+        setTraced(true)
+        setTraceId(id)
+      })
+      .catch(() => {})
+  }, [])
+
+  async function handleTrace(submittedCode: string) {
     setLoading(true)
     setError(null)
     setNarration(null)
     setStreamingSummary('')
     setStdout('')
     setTraced(false)
-    setSubmittedCode(code)
+    setTraceId(null)
+    setSubmittedCode(submittedCode)
+    window.history.replaceState({}, '', '/')
     try {
       const res = await fetch('/trace', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code }),
+        body: JSON.stringify({ code: submittedCode }),
       })
       let data: Record<string, unknown>
       try {
@@ -57,6 +81,10 @@ export default function App() {
       setCapped(typed.capped)
       setStdout(typed.stdout ?? '')
       setTraced(true)
+      if (typed.trace_id) {
+        setTraceId(typed.trace_id)
+        window.history.replaceState({}, '', `/?trace=${typed.trace_id}`)
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e))
       setEvents([])
@@ -96,7 +124,6 @@ export default function App() {
         if (done) break
         buffer += decoder.decode(value, { stream: true })
 
-        // Process complete SSE lines
         const lines = buffer.split('\n')
         buffer = lines.pop() ?? ''
 
@@ -107,14 +134,11 @@ export default function App() {
 
           if (payload.type === 'delta') {
             accText += payload.text as string
-            // Progressively extract summary as text arrives
             const m = accText.match(/"summary"\s*:\s*"((?:[^"\\]|\\.)*)/s)
             if (m) setStreamingSummary(m[1].replace(/\\n/g, '\n').replace(/\\"/g, '"'))
-
           } else if (payload.type === 'done') {
             setNarration(payload.narration as NarrationResponse)
             setStreamingSummary('')
-
           } else if (payload.type === 'error') {
             throw new Error((payload.detail as string) ?? 'Narration failed')
           }
@@ -127,20 +151,54 @@ export default function App() {
     }
   }
 
+  function handleCopyLink() {
+    if (!traceId) return
+    navigator.clipboard.writeText(`${window.location.origin}/?trace=${traceId}`)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
   const badge = current ? EVENT_BADGE[current.event] : null
   const prevLocals = getPrevLocals()
 
   return (
     <div className="min-h-screen bg-[#0f1117] text-slate-100 p-6 flex flex-col gap-6 max-w-7xl mx-auto">
-      <div className="flex items-baseline gap-3">
+      <div className="flex items-baseline gap-3 flex-wrap">
         <h1 className="text-2xl font-semibold text-slate-100 tracking-tight">
           Program Execution Story Engine
         </h1>
         <span className="text-slate-600 text-sm">Python tracer + replay</span>
+        {traceId && (
+          <button
+            onClick={handleCopyLink}
+            className="ml-auto flex items-center gap-1.5 px-3 py-1 rounded-lg border border-slate-600 hover:border-violet-500 text-xs text-slate-300 hover:text-violet-300 transition-colors"
+          >
+            {copied ? (
+              <>
+                <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span className="text-emerald-400">Copied!</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                </svg>
+                Share trace
+              </>
+            )}
+          </button>
+        )}
       </div>
 
       <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-5">
-        <CodeInput onSubmit={handleTrace} loading={loading} />
+        <CodeInput
+          code={code}
+          onCodeChange={setCode}
+          onSubmit={handleTrace}
+          loading={loading}
+        />
       </div>
 
       {error && (
@@ -187,7 +245,6 @@ export default function App() {
             loading={loading}
           />
 
-          {/* Step header — what's happening right now */}
           {current && badge && (
             current.event === 'return' && current.return_value !== null && current.func_name !== '<module>'
               ? (

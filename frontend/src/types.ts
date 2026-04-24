@@ -27,4 +27,6 @@ export interface TraceResponse {
   total_steps: number
   capped: boolean
   stdout: string
+  trace_id?: string
+  code?: string
 }

@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import Editor, { useMonaco } from '@monaco-editor/react'
+import { useEffect } from 'react'
 
-const EXAMPLES: Record<string, string> = {
+export const EXAMPLES: Record<string, string> = {
   Factorial: `def factorial(n):
     if n == 1:
         return 1
@@ -38,12 +39,34 @@ result = binary_search([1, 3, 5, 7, 9, 11], 7)`,
 }
 
 interface Props {
+  code: string
+  onCodeChange: (code: string) => void
   onSubmit: (code: string) => void
   loading: boolean
 }
 
-export function CodeInput({ onSubmit, loading }: Props) {
-  const [code, setCode] = useState(EXAMPLES['Factorial'])
+export function CodeInput({ code, onCodeChange, onSubmit, loading }: Props) {
+  const monaco = useMonaco()
+
+  useEffect(() => {
+    if (!monaco) return
+    monaco.editor.defineTheme('story-dark', {
+      base: 'vs-dark',
+      inherit: true,
+      rules: [],
+      colors: {
+        'editor.background': '#0d1117',
+        'editor.foreground': '#e2e8f0',
+        'editorLineNumber.foreground': '#475569',
+        'editorLineNumber.activeForeground': '#94a3b8',
+        'editor.lineHighlightBackground': '#1e293b80',
+        'editorCursor.foreground': '#8b5cf6',
+        'editor.selectionBackground': '#4c1d9580',
+        'editorIndentGuide.background1': '#1e293b',
+      },
+    })
+    monaco.editor.setTheme('story-dark')
+  }, [monaco])
 
   return (
     <div className="flex flex-col gap-3">
@@ -52,7 +75,7 @@ export function CodeInput({ onSubmit, loading }: Props) {
         {Object.keys(EXAMPLES).map(name => (
           <button
             key={name}
-            onClick={() => setCode(EXAMPLES[name])}
+            onClick={() => onCodeChange(EXAMPLES[name])}
             className="px-3 py-1 text-xs rounded bg-slate-700 hover:bg-slate-600 text-slate-200 transition-colors"
           >
             {name}
@@ -60,12 +83,35 @@ export function CodeInput({ onSubmit, loading }: Props) {
         ))}
       </div>
 
-      <textarea
-        value={code}
-        onChange={e => setCode(e.target.value)}
-        className="w-full h-52 bg-slate-900 border border-slate-700 rounded-lg p-4 text-sm text-slate-100 font-mono resize-none focus:outline-none focus:border-violet-500 transition-colors"
-        spellCheck={false}
-      />
+      <div className="rounded-lg overflow-hidden border border-slate-700 focus-within:border-violet-500 transition-colors">
+        <Editor
+          height="220px"
+          language="python"
+          theme="story-dark"
+          value={code}
+          onChange={val => onCodeChange(val ?? '')}
+          loading={
+            <div className="h-[220px] bg-[#0d1117] flex items-center justify-center text-slate-500 text-sm font-mono">
+              Loading editor…
+            </div>
+          }
+          options={{
+            fontSize: 13,
+            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+            minimap: { enabled: false },
+            lineNumbers: 'on',
+            scrollBeyondLastLine: false,
+            wordWrap: 'off',
+            tabSize: 4,
+            insertSpaces: true,
+            padding: { top: 12, bottom: 12 },
+            renderLineHighlight: 'line',
+            overviewRulerLanes: 0,
+            hideCursorInOverviewRuler: true,
+            scrollbar: { verticalScrollbarSize: 6, horizontalScrollbarSize: 6 },
+          }}
+        />
+      </div>
 
       <button
         onClick={() => onSubmit(code)}

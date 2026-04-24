@@ -10,6 +10,7 @@ from backend.models import TraceRequest, TraceResponse, NarrationRequest
 from backend.tracer import trace_code
 from backend.narrator import narrate_stream
 from backend.sandbox import TimeoutError
+from backend import database
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -32,6 +33,7 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup_check():
+    database.init_db()
     if not os.environ.get("ANTHROPIC_API_KEY"):
         logger.warning(
             "ANTHROPIC_API_KEY is not set — the /narrate endpoint will fail. "
@@ -49,6 +51,13 @@ def trace_endpoint(req: TraceRequest):
     except SyntaxError as e:
         raise HTTPException(status_code=400, detail=f"Syntax error: {e}")
 
+    trace_id = database.trace_id_for(req.code)
+
+    # Return cached result if this exact code was traced before
+    cached = database.get_trace(trace_id)
+    if cached:
+        return TraceResponse(**cached)
+
     try:
         events, capped, stdout = trace_code(req.code)
     except TimeoutError:
@@ -62,7 +71,23 @@ def trace_endpoint(req: TraceRequest):
             detail="No execution steps were recorded. Make sure your code contains executable statements.",
         )
 
-    return TraceResponse(events=events, total_steps=len(events), capped=capped, stdout=stdout)
+    response = TraceResponse(
+        events=events,
+        total_steps=len(events),
+        capped=capped,
+        stdout=stdout,
+        trace_id=trace_id,
+    )
+    database.save_trace(trace_id, req.code, response.model_dump())
+    return response
+
+
+@app.get("/share/{trace_id}", response_model=TraceResponse)
+def share_endpoint(trace_id: str):
+    data = database.get_trace(trace_id)
+    if not data:
+        raise HTTPException(status_code=404, detail="Trace not found.")
+    return TraceResponse(**data)
 
 
 @app.post("/narrate")

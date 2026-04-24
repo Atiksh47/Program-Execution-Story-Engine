@@ -22,6 +22,8 @@ class TraceResponse(BaseModel):
     total_steps: int
     capped: bool
     stdout: str = ""
+    trace_id: str | None = None
+    code: str | None = None
 
 
 class NarrationRequest(BaseModel):

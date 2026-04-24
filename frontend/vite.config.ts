@@ -7,6 +7,8 @@ export default defineConfig({
     proxy: {
       '/trace': 'http://localhost:8000',
       '/narrate': 'http://localhost:8000',
+      '/share': 'http://localhost:8000',
+      '/health': 'http://localhost:8000',
     },
   },
 })
