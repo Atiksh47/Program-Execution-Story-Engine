@@ -11,6 +11,7 @@ from backend.tracer import trace_code
 from backend.narrator import narrate_stream
 from backend.sandbox import TimeoutError
 from backend import database
+from backend.call_tree import build_call_tree
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -56,7 +57,11 @@ def trace_endpoint(req: TraceRequest):
     # Return cached result if this exact code was traced before
     cached = database.get_trace(trace_id)
     if cached:
-        return TraceResponse(**cached)
+        response = TraceResponse(**cached)
+        # Backfill call_tree for cache entries written before Phase B
+        if response.call_tree is None:
+            response.call_tree = build_call_tree(response.events)
+        return response
 
     try:
         events, capped, stdout = trace_code(req.code)
@@ -77,6 +82,7 @@ def trace_endpoint(req: TraceRequest):
         capped=capped,
         stdout=stdout,
         trace_id=trace_id,
+        call_tree=build_call_tree(events),
     )
     database.save_trace(trace_id, req.code, response.model_dump())
     return response
@@ -87,7 +93,10 @@ def share_endpoint(trace_id: str):
     data = database.get_trace(trace_id)
     if not data:
         raise HTTPException(status_code=404, detail="Trace not found.")
-    return TraceResponse(**data)
+    response = TraceResponse(**data)
+    if response.call_tree is None:
+        response.call_tree = build_call_tree(response.events)
+    return response
 
 
 @app.post("/narrate")

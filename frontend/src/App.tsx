@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import type { TraceEvent, TraceResponse, NarrationResponse } from './types'
+import type { TraceEvent, TraceResponse, NarrationResponse, CallTreeNode } from './types'
 import { useTimeline } from './hooks/useTimeline'
 import { CodeInput, EXAMPLES } from './components/CodeInput'
 import { SourceHighlighter } from './components/SourceHighlighter'
@@ -7,6 +7,7 @@ import { VariableInspector } from './components/VariableInspector'
 import { CallStackView } from './components/CallStackView'
 import { TimelineScrubber } from './components/TimelineScrubber'
 import { NarrationPanel } from './components/NarrationPanel'
+import { CallTreeView } from './components/CallTreeView'
 
 const EVENT_BADGE: Record<string, { cls: string; label: string; desc: string }> = {
   call:   { cls: 'bg-violet-500/20 text-violet-300 border-violet-500/40',   label: 'CALL',   desc: 'entering function' },
@@ -29,6 +30,8 @@ export default function App() {
   const [speed, setSpeed] = useState(800)
   const [traceId, setTraceId] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [callTree, setCallTree] = useState<CallTreeNode | null>(null)
+  const [leftView, setLeftView] = useState<'source' | 'calltree'>('source')
 
   const { step, current, total, prev, next, goTo, playing, togglePlay, getPrevLocals } = useTimeline(events, speed)
 
@@ -47,6 +50,8 @@ export default function App() {
         setStdout(data.stdout ?? '')
         setTraced(true)
         setTraceId(id)
+        setCallTree(data.call_tree ?? null)
+        if (data.call_tree) setLeftView('calltree')
       })
       .catch(() => {})
   }, [])
@@ -59,6 +64,8 @@ export default function App() {
     setStdout('')
     setTraced(false)
     setTraceId(null)
+    setCallTree(null)
+    setLeftView('source')
     setSubmittedCode(submittedCode)
     window.history.replaceState({}, '', '/')
     try {
@@ -76,7 +83,7 @@ export default function App() {
       if (!res.ok) {
         throw new Error((data.detail as string) ?? 'Trace failed')
       }
-      const typed: TraceResponse = data
+      const typed = data as unknown as TraceResponse
       setEvents(typed.events)
       setCapped(typed.capped)
       setStdout(typed.stdout ?? '')
@@ -85,6 +92,8 @@ export default function App() {
         setTraceId(typed.trace_id)
         window.history.replaceState({}, '', `/?trace=${typed.trace_id}`)
       }
+      setCallTree(typed.call_tree ?? null)
+      if (typed.call_tree) setLeftView('calltree')
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e))
       setEvents([])
@@ -312,7 +321,37 @@ export default function App() {
           )}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <SourceHighlighter code={submittedCode} current={current} />
+            {/* Left panel: Source view or Call Tree view */}
+            <div className="flex flex-col gap-0 min-w-0">
+              {callTree && (
+                <div className="flex mb-2 rounded-lg overflow-hidden border border-slate-700 self-start">
+                  <button
+                    onClick={() => setLeftView('source')}
+                    className={`px-4 py-1.5 text-xs font-medium transition-colors ${
+                      leftView === 'source'
+                        ? 'bg-slate-700 text-slate-100'
+                        : 'bg-slate-800/60 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Source
+                  </button>
+                  <button
+                    onClick={() => setLeftView('calltree')}
+                    className={`px-4 py-1.5 text-xs font-medium transition-colors ${
+                      leftView === 'calltree'
+                        ? 'bg-slate-700 text-slate-100'
+                        : 'bg-slate-800/60 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Call Tree
+                  </button>
+                </div>
+              )}
+              {leftView === 'calltree' && callTree
+                ? <CallTreeView tree={callTree} currentStep={step} onNodeClick={goTo} />
+                : <SourceHighlighter code={submittedCode} current={current} />
+              }
+            </div>
             <div className="flex flex-col gap-4">
               <VariableInspector
                 locals={current?.locals ?? {}}

@@ -1,6 +1,19 @@
 from pydantic import BaseModel
 
 
+class CallTreeNode(BaseModel):
+    id: int
+    func_name: str
+    args: dict[str, str] = {}
+    return_value: str | None = None
+    start_step: int
+    end_step: int | None = None
+    depth: int
+    children: list['CallTreeNode'] = []
+
+CallTreeNode.model_rebuild()
+
+
 class TraceEvent(BaseModel):
     step: int
     event: str  # "call", "line", "return"
@@ -24,6 +37,7 @@ class TraceResponse(BaseModel):
     stdout: str = ""
     trace_id: str | None = None
     code: str | None = None
+    call_tree: CallTreeNode | None = None
 
 
 class NarrationRequest(BaseModel):

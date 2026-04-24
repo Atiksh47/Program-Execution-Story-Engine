@@ -22,6 +22,17 @@ export interface NarrationResponse {
   summary: string
 }
 
+export interface CallTreeNode {
+  id: number
+  func_name: string
+  args: Record<string, string>
+  return_value: string | null
+  start_step: number
+  end_step: number | null
+  depth: number
+  children: CallTreeNode[]
+}
+
 export interface TraceResponse {
   events: TraceEvent[]
   total_steps: number
@@ -29,4 +40,5 @@ export interface TraceResponse {
   stdout: string
   trace_id?: string
   code?: string
+  call_tree?: CallTreeNode | null
 }
