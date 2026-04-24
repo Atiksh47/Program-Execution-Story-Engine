@@ -49,7 +49,7 @@ export function NarrationPanel({ narration, streamingSummary, loading, currentSt
               <span className="inline-block w-1 h-3.5 bg-violet-400 ml-0.5 animate-pulse align-middle" />
             </p>
           ) : (
-            <span className="text-slate-400 animate-pulse">Asking Claude to interpret the timeline…</span>
+            <span className="text-slate-400 animate-pulse">Asking local model to interpret the timeline…</span>
           )
         )}
 

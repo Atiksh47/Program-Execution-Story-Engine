@@ -9,6 +9,7 @@ export default defineConfig({
       '/narrate': 'http://localhost:8000',
       '/share': 'http://localhost:8000',
       '/health': 'http://localhost:8000',
+      '/analyze-complexity': 'http://localhost:8000',
     },
   },
 })

@@ -8,6 +8,7 @@ import { CallStackView } from './components/CallStackView'
 import { TimelineScrubber } from './components/TimelineScrubber'
 import { NarrationPanel } from './components/NarrationPanel'
 import { CallTreeView } from './components/CallTreeView'
+import { ComplexityPanel } from './components/ComplexityPanel'
 
 const EVENT_BADGE: Record<string, { cls: string; label: string; desc: string }> = {
   call:   { cls: 'bg-violet-500/20 text-violet-300 border-violet-500/40',   label: 'CALL',   desc: 'entering function' },
@@ -209,6 +210,8 @@ export default function App() {
           loading={loading}
         />
       </div>
+
+      <ComplexityPanel code={code} onLoadExample={setCode} />
 
       {error && (
         <div className="bg-red-900/30 border border-red-700 rounded-lg px-4 py-3 text-red-300 text-sm">

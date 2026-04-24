@@ -55,3 +55,22 @@ class NarrationResponse(BaseModel):
     step_labels: dict[str, str]
     phases: list[Phase]
     summary: str
+
+
+class ComplexityRequest(BaseModel):
+    code: str
+    max_n: int = 20
+
+
+class FitResult(BaseModel):
+    label: str
+    r2: float
+
+
+class ComplexityResponse(BaseModel):
+    sizes: list[int]
+    times_ms: list[float]
+    fit_values: list[float]
+    best: FitResult
+    all_fits: list[FitResult]
+    param_name: str
